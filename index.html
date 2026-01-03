@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Фото-аватар мини-приложение</title>
+    <script src="https://web.telegram.org/apps/tg-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+            min-height: 600px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: #0088cc;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .content {
+            flex: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Экран загрузки */
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        .upload-screen {
+            text-align: center;
+        }
+
+        .upload-icon {
+            font-size: 64px;
+            margin-bottom: 24px;
+        }
+
+        .upload-screen h2 {
+            font-size: 24px;
+            color: #222;
+            margin-bottom: 12px;
+        }
+
+        .upload-screen p {
+            color: #888;
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 32px;
+            background: #0088cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: #0070a8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 136, 204, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.secondary {
+            background: #e8e8e8;
+            color: #222;
+        }
+
+        .btn.secondary:hover {
+            background: #d0d0d0;
+        }
+
+        /* Экран результата */
+        .result-screen {
+            width: 100%;
+        }
+
+        .style-name {
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 16px;
+        }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 24px;
+            background: #f5f5f5;
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .controls .btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+        }
+
+        .controls .btn.nav {
+            background: #e8e8e8;
+            color: #222;
+        }
+
+        .controls .btn.nav:hover {
+            background: #d0d0d0;
+        }
+
+        .nav-arrows {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .nav-arrows .btn {
+            flex: 1;
+            padding: 12px;
+            font-size: 14px;
+            background: #f0f0f0;
+            color: #222;
+        }
+
+        .nav-arrows .btn:hover {
+            background: #e0e0e0;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 14px;
+            background: #34a853;
+            color: white;
+            font-size: 16px;
+        }
+
+        .download-btn:hover {
+            background: #2d8e47;
+        }
+
+        .info {
+            background: #f0f7ff;
+            border-left: 4px solid #0088cc;
+            padding: 12px;
+            border-radius: 4px;
+            margin-top: 16px;
+            font-size: 13px;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        @media (max-height: 700px) {
+            .content {
+                padding: 16px;
+            }
+
+            .canvas-container {
+                padding: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📸 Фото-аватар</h1>
+        </div>
+
+        <div class="content">
+            <!-- Экран загрузки -->
+            <div class="screen upload-screen active" id="uploadScreen">
+                <div class="upload-icon">📷</div>
+                <h2>Выберите фото</h2>
+                <p>Загрузите изображение, чтобы применить красивый стиль</p>
+                <div class="file-input-wrapper">
+                    <button class="btn">Выбрать фото</button>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+                <div class="info">
+                    💡 Поддерживаются форматы: JPG, PNG, GIF и другие изображения
+                </div>
+            </div>
+
+            <!-- Экран результата -->
+            <div class="screen result-screen" id="resultScreen">
+                <div class="style-name" id="styleName">Аниме</div>
+
+                <div class="canvas-container">
+                    <canvas id="outputCanvas"></canvas>
+                </div>
+
+                <div class="nav-arrows">
+                    <button class="btn nav" id="prevBtn">← Назад</button>
+                    <button class="btn nav" id="nextBtn">Вперёд →</button>
+                </div>
+
+                <button class="btn download-btn" id="downloadBtn">⬇️ Скачать</button>
+
+                <button class="btn secondary" style="width: 100%; margin-top: 12px;" id="backBtn">Выбрать другое фото</button>
+
+                <div class="info">
+                    ℹ️ Используйте стрелки для переключения стилей. Нажмите "Скачать" для сохранения изображения.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация Telegram WebApp API
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.setHeaderColor('#0088cc');
+
+        // Состояние приложения
+        const app = {
+            currentImage: null,
+            currentStyleIndex: 0,
+            styles: ['Аниме', 'Пиксель-арт', 'Винтаж']
+        };
+
+        // Элементы DOM
+        const uploadScreen = document.getElementById('uploadScreen');
+        const resultScreen = document.getElementById('resultScreen');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d');
+        const styleName = document.getElementById('styleName');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const backBtn = document.getElementById('backBtn');
+
+        // Обработчик загрузки файла
+        document.querySelector('.file-input-wrapper button').addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        app.currentImage = img;
+                        app.currentStyleIndex = 0;
+                        showResultScreen();
+                        renderCanvas();
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Переключение экранов
+        function showResultScreen() {
+            uploadScreen.classList.remove('active');
+            resultScreen.classList.add('active');
+        }
+
+        function showUploadScreen() {
+            resultScreen.classList.remove('active');
+            uploadScreen.classList.add('active');
+            app.currentImage = null;
+            fileInput.value = '';
+        }
+
+        // Навигация по стилям
+        prevBtn.addEventListener('click', () => {
+            app.currentStyleIndex = (app.currentStyleIndex - 1 + app.styles.length) % app.styles.length;
+            renderCanvas();
+        });
+
+        nextBtn.addEventListener('click', () => {
+            app.currentStyleIndex = (app.currentStyleIndex + 1) % app.styles.length;
+            renderCanvas();
+        });
+
+        // Возврат на экран загрузки
+        backBtn.addEventListener('click', showUploadScreen);
+
+        // Рендеринг canvas с применением стиля
+        function renderCanvas() {
+            if (!app.currentImage) return;
+
+            // Установка размеров canvas
+            canvas.width = app.currentImage.width;
+            canvas.height = app.currentImage.height;
+
+            // Очистка canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Применение стиля
+            const style = app.styles[app.currentStyleIndex];
+            styleName.textContent = style;
+
+            switch (app.currentStyleIndex) {
+                case 0: // Аниме
+                    applyAnimeStyle();
+                    break;
+                case 1: // Пиксель-арт
+                    applyPixelArtStyle();
+                    break;
+                case 2: // Винтаж
+                    applyVintageStyle();
+                    break;
+            }
+        }
+
+        // Стиль "Аниме" - исходное изображение
+        function applyAnimeStyle() {
+            ctx.drawImage(app.currentImage, 0, 0);
+        }
+
+        // Стиль "Пиксель-арт" - пиксельный эффект
+        function applyPixelArtStyle() {
+            const blockSize = 20;
+
+            // Рисуем исходное изображение
+            ctx.drawImage(app.currentImage, 0, 0);
+
+            // Получаем данные пикселей
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Применяем пиксельный эффект
+            for (let y = 0; y < canvas.height; y += blockSize) {
+                for (let x = 0; x < canvas.width; x += blockSize) {
+                    // Получаем средний цвет блока
+                    let r = 0, g = 0, b = 0, count = 0;
+
+                    for (let dy = 0; dy < blockSize && y + dy < canvas.height; dy++) {
+                        for (let dx = 0; dx < blockSize && x + dx < canvas.width; dx++) {
+                            const pixelIndex = ((y + dy) * canvas.width + (x + dx)) * 4;
+                            r += data[pixelIndex];
+                            g += data[pixelIndex + 1];
+                            b += data[pixelIndex + 2];
+                            count++;
+                        }
+                    }
+
+                    // Усредняем цвет
+                    r = Math.round(r / count);
+                    g = Math.round(g / count);
+                    b = Math.round(b / count);
+
+                    // Заполняем блок усредненным цветом
+                    ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                    ctx.fillRect(x, y, blockSize, blockSize);
+                }
+            }
+        }
+
+        // Стиль "Винтаж" - сепия
+        function applyVintageStyle() {
+            ctx.drawImage(app.currentImage, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            // Применяем сепию
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+
+                // Формула сепии
+                const newR = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+                const newG = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+                const newB = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+
+                data[i] = newR;
+                data[i + 1] = newG;
+                data[i + 2] = newB;
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+        }
+
+        // Скачивание изображения
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.href = canvas.toDataURL('image/png');
+            link.download = `photo-avatar-${app.styles[app.currentStyleIndex].replace(/\s+/g, '-').toLowerCase()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Отправляем сообщение в Telegram о скачивании
+            if (tg.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'download',
+                    style: app.styles[app.currentStyleIndex]
+                }));
+            }
+        });
+
+        // Обработка нажатия главной кнопки Telegram
+        tg.onEvent('mainButtonClicked', () => {
+            downloadBtn.click();
+        });
+    </script>
+</body>
+</html>
