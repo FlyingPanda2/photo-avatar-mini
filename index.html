@@ -284,10 +284,15 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             // Инициализация Telegram WebApp API
-            const tg = window.Telegram?.WebApp;
-            if (tg) {
-                tg.expand();
-                tg.setHeaderColor('#0088cc');
+            let tg = null;
+            if (typeof window !== 'undefined' && window.Telegram && window.Telegram.WebApp) {
+                tg = window.Telegram.WebApp;
+                try {
+                    tg.expand();
+                    tg.setHeaderColor('#0088cc');
+                } catch (e) {
+                    console.warn('Telegram API не полностью инициализирован:', e);
+                }
             }
 
             // Состояние приложения
