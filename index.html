@@ -246,14 +246,24 @@
             <!-- Экран загрузки -->
             <div class="screen upload-screen active" id="uploadScreen">
                 <div class="upload-icon">📷</div>
-                <h2>Выберите фото</h2>
-                <p>Загрузите изображение, чтобы применить красивый стиль</p>
+                <h2>Создайте аватар</h2>
+                <p>Загрузите фото или сгенерируйте через AI</p>
                 <div class="file-input-wrapper">
-                    <button class="btn" id="selectPhotoBtn">Выбрать фото</button>
+                    <button class="btn" id="selectPhotoBtn">📤 Загрузить фото</button>
                     <input type="file" id="fileInput" accept="image/*">
                 </div>
+                <button class="btn" id="generateBtn" style="background: #34a853; margin-top: 12px;">🤖 Генерировать через AI</button>
+                <div id="generatePromptContainer" style="display: none; margin-top: 16px; width: 100%;">
+                    <input type="text" id="generatePrompt" placeholder="Опишите изображение (опционально)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; margin-bottom: 8px;">
+                    <button class="btn" id="generateConfirmBtn" style="background: #34a853; width: 100%;">✨ Создать</button>
+                    <button class="btn secondary" id="generateCancelBtn" style="width: 100%;">Отмена</button>
+                </div>
+                <div id="generateLoading" style="display: none; text-align: center; margin-top: 16px;">
+                    <div style="font-size: 24px; margin-bottom: 8px;">⏳</div>
+                    <p style="color: #666; font-size: 14px;">Генерирую изображение...<br><small>Это может занять 30-60 секунд</small></p>
+                </div>
                 <div class="info">
-                    💡 Поддерживаются форматы: JPG, PNG, GIF и другие изображения
+                    💡 Можно загрузить фото или генерировать через AI нейросеть
                 </div>
             </div>
 
@@ -282,6 +292,10 @@
     </div>
 
     <script>
+        // GitHub Actions генерирует через Replicate автоматически
+        const GITHUB_TOKEN = ''; // Необязательно, для ускорения (добавьте ваш личный токен)
+        const REPO = 'FlyingPanda2/photo-avatar-mini'; // Замените на свой репозиторий
+        
         document.addEventListener('DOMContentLoaded', () => {
             // Инициализация Telegram WebApp API
             let tg = null;
@@ -313,9 +327,15 @@
             const nextBtn = document.getElementById('nextBtn');
             const downloadBtn = document.getElementById('downloadBtn');
             const backBtn = document.getElementById('backBtn');
+            const selectPhotoBtn = document.getElementById('selectPhotoBtn');
+            const generateBtn = document.getElementById('generateBtn');
+            const generatePromptContainer = document.getElementById('generatePromptContainer');
+            const generatePrompt = document.getElementById('generatePrompt');
+            const generateConfirmBtn = document.getElementById('generateConfirmBtn');
+            const generateCancelBtn = document.getElementById('generateCancelBtn');
+            const generateLoading = document.getElementById('generateLoading');
 
             // Обработчик загрузки файла
-            const selectPhotoBtn = document.getElementById('selectPhotoBtn');
             if (selectPhotoBtn && fileInput) {
                 selectPhotoBtn.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -366,6 +386,132 @@
             nextBtn.addEventListener('click', () => {
                 app.currentStyleIndex = (app.currentStyleIndex + 1) % app.styles.length;
                 renderCanvas();
+            });
+
+            // Возврат на экран загрузки
+            backBtn.addEventListener('click', showUploadScreen);
+
+            // Генерация через AI
+            generateBtn.addEventListener('click', () => {
+                generatePromptContainer.style.display = 'block';
+                generateBtn.style.display = 'none';
+            });
+
+            generateCancelBtn.addEventListener('click', () => {
+                generatePromptContainer.style.display = 'none';
+                generateBtn.style.display = 'block';
+                generatePrompt.value = '';
+            });
+
+            generateConfirmBtn.addEventListener('click', async () => {
+                const prompt = generatePrompt.value;
+                generatePromptContainer.style.display = 'none';
+                generateLoading.style.display = 'block';
+                generateBtn.style.display = 'none';
+
+                try {
+                    // Запрашиваем у пользователя выбор стиля
+                    const style = confirm('Аниме стиль? (OK=Аниме, Cancel=Пиксель-арт)') ? 'anime' : 'pixel';
+
+                    // Запускаем GitHub Action для генерации
+                    const hash = Math.random().toString(36).substring(7);
+                    const input = {
+                        style: style,
+                        prompt: prompt,
+                        timestamp: Date.now(),
+                        hash: hash
+                    };
+
+                    // Отправляем repository_dispatch событие
+                    const response = await fetch(
+                        `https://api.github.com/repos/${REPO}/dispatches`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Accept': 'application/vnd.github.v3+json',
+                                'Authorization': GITHUB_TOKEN ? `token ${GITHUB_TOKEN}` : undefined,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                event_type: 'generate-image',
+                                client_payload: {
+                                    input: JSON.stringify(input),
+                                    hash: hash
+                                }
+                            })
+                        }
+                    );
+
+                    if (!response.ok) {
+                        throw new Error('Ошибка при запуске генерации');
+                    }
+
+                    // Ждем выполнения (обычно 30-60 сек)
+                    await new Promise(r => setTimeout(r, 3000));
+
+                    // Проверяем результат каждые 3 секунды
+                    let attempts = 0;
+                    let imageUrl = null;
+
+                    while (attempts < 20) {
+                        try {
+                            // Получаем список файлов из generated папки
+                            const listResponse = await fetch(
+                                `https://api.github.com/repos/${REPO}/contents/generated`,
+                                {
+                                    headers: {
+                                        'Accept': 'application/vnd.github.v3+json'
+                                    }
+                                }
+                            );
+
+                            if (listResponse.ok) {
+                                const files = await listResponse.json();
+                                const latestFile = files
+                                    .filter(f => f.name.includes(hash))
+                                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+                                if (latestFile) {
+                                    imageUrl = `https://raw.githubusercontent.com/${REPO}/gh-pages/${latestFile.path}`;
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            // Игнорируем ошибки при проверке
+                        }
+
+                        attempts++;
+                        await new Promise(r => setTimeout(r, 3000));
+                    }
+
+                    if (!imageUrl) {
+                        // Если файл не найден, используем дефолтный URL
+                        imageUrl = `https://raw.githubusercontent.com/${REPO}/gh-pages/generated/latest-${hash}.jpg`;
+                    }
+
+                    // Загружаем сгенерированное изображение
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => {
+                        app.currentImage = img;
+                        app.currentStyleIndex = 0;
+                        showResultScreen();
+                        renderCanvas();
+                    };
+                    img.onerror = () => {
+                        alert('Изображение еще генерируется. Попробуйте через минуту.');
+                        generateLoading.style.display = 'none';
+                        generateBtn.style.display = 'block';
+                    };
+                    img.src = imageUrl;
+
+                } catch (error) {
+                    console.error('Ошибка генерации:', error);
+                    alert(`Ошибка: ${error.message}\n\nУбедитесь, что в Settings → Secrets добавлен REPLICATE_API_TOKEN`);
+                    generateLoading.style.display = 'none';
+                    generateBtn.style.display = 'block';
+                    generatePromptContainer.style.display = 'block';
+                }
             });
 
             // Возврат на экран загрузки
