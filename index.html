@@ -249,7 +249,7 @@
                 <h2>Выберите фото</h2>
                 <p>Загрузите изображение, чтобы применить красивый стиль</p>
                 <div class="file-input-wrapper">
-                    <button class="btn">Выбрать фото</button>
+                    <button class="btn" id="selectPhotoBtn">Выбрать фото</button>
                     <input type="file" id="fileInput" accept="image/*">
                 </div>
                 <div class="info">
@@ -307,9 +307,12 @@
         const backBtn = document.getElementById('backBtn');
 
         // Обработчик загрузки файла
-        document.querySelector('.file-input-wrapper button').addEventListener('click', () => {
-            fileInput.click();
-        });
+        const selectPhotoBtn = document.getElementById('selectPhotoBtn');
+        if (selectPhotoBtn) {
+            selectPhotoBtn.addEventListener('click', () => {
+                fileInput.click();
+            });
+        }
 
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
